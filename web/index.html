@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>MTG Vision — Operator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="main.dart.js"></script>
+  <style>
+  /* ── VOICE BUTTON ── */
+  .voice-fab-wrap{position:fixed;bottom:90px;right:20px;z-index:1000;display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .voice-fab{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1a0a2a,#0a0510);border:2px solid rgba(201,168,76,0.5);color:#c9a84c;font-size:1.15rem;cursor:pointer;box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 30px rgba(201,168,76,0.15);display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+  .voice-fab:hover{transform:scale(1.08);border-color:rgba(201,168,76,0.9);}
+  .voice-fab.listening{background:linear-gradient(135deg,#2a0a1a,#1a0510);border-color:rgba(255,80,120,0.8);color:#ff88aa;animation:voice-pulse 1s ease-in-out infinite;}
+  .voice-fab.processing{border-color:rgba(80,160,255,0.8);color:#e8d7a1;animation:voice-spin 1s linear infinite;}
+  .voice-fab-label{font-family:'Cinzel',serif;font-size:0.5rem;letter-spacing:0.08em;color:rgba(201,168,76,0.65);text-transform:uppercase;text-align:center;pointer-events:none;white-space:nowrap;}
+  .voice-fab.listening~.voice-fab-label{color:rgba(255,80,120,0.85);}
+  @keyframes voice-pulse{0%,100%{box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 20px rgba(255,80,120,0.3);}50%{box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 50px rgba(255,80,120,0.7);}}
+  @keyframes voice-spin{0%{box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 30px rgba(80,160,255,0.2),10px 0 30px rgba(80,160,255,0.4);}50%{box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 30px rgba(80,160,255,0.4),-10px 0 30px rgba(80,160,255,0.2);}100%{box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 30px rgba(80,160,255,0.2),10px 0 30px rgba(80,160,255,0.4);}}
+
+  /* ── VOICE STATUS PANEL ── */
+  .voice-panel{position:fixed;bottom:146px;right:20px;width:320px;background:rgba(6,4,14,0.97);border:1px solid rgba(201,168,76,0.3);border-radius:16px;padding:14px 16px;z-index:999;box-shadow:0 20px 60px rgba(0,0,0,0.8);animation:panel-up 0.2s ease;display:none;}
+  .voice-panel.visible{display:block;}
+  @keyframes panel-up{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+  .voice-panel-hdr{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;color:rgba(201,168,76,0.7);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .voice-panel-dot{width:7px;height:7px;border-radius:50%;background:#c9a84c;animation:vpd 1.5s ease infinite;}
+  @keyframes vpd{0%,100%{opacity:0.3;}50%{opacity:1;}}
+  .voice-transcript{font-family:Georgia,serif;font-size:0.82rem;color:rgba(240,235,225,0.8);min-height:36px;line-height:1.6;border-left:2px solid rgba(201,168,76,0.3);padding-left:10px;margin-bottom:10px;font-style:italic;}
+  .voice-action{font-family:'Cinzel',serif;font-size:0.7rem;color:rgba(68,255,136,0.8);letter-spacing:0.06em;}
+  .voice-action.error{color:rgba(255,100,100,0.8);}
+  .voice-action-list{display:flex;flex-direction:column;gap:3px;max-height:120px;overflow-y:auto;}
+  .voice-action-item{font-family:Georgia,serif;font-size:0.75rem;color:rgba(240,235,225,0.6);padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+  .voice-action-item::before{content:'▸ ';color:rgba(68,255,136,0.5);}
+  .voice-choice-list{display:grid;gap:6px;margin-top:8px;}
+  .voice-choice-btn{padding:8px 10px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.28);border-radius:10px;color:rgba(240,235,225,0.9);font-family:Georgia,serif;font-size:0.75rem;text-align:left;cursor:pointer;transition:background 0.18s,border-color 0.18s,transform 0.18s;}
+  .voice-choice-btn:hover{background:rgba(201,168,76,0.18);border-color:rgba(201,168,76,0.55);transform:translateY(-1px);}
+  .voice-hold-hint{font-family:Georgia,serif;font-size:0.7rem;color:rgba(255,255,255,0.25);text-align:center;margin-top:8px;}
+
+  /* ── AI ASSISTANT ── */
+  .ai-float-btn{position:fixed;bottom:90px;left:20px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1a1206,#0f0a03);border:2px solid rgba(201,168,76,0.4);color:#f2e5b7;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 20px rgba(201,168,76,0.12);z-index:998;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+  .ai-float-btn:hover{transform:scale(1.1);border-color:rgba(201,168,76,0.7);}
+  .ai-float-dot{position:absolute;top:-2px;right:-2px;width:13px;height:13px;border-radius:50%;background:#44ff88;border:2px solid #0a0b14;animation:ai-glow 2s ease-in-out infinite;}
+  @keyframes ai-glow{0%,100%{box-shadow:0 0 4px rgba(68,255,136,0.4);}50%{box-shadow:0 0 14px rgba(68,255,136,0.9);}}
+  .ai-panel{position:fixed;bottom:154px;left:20px;width:330px;max-height:480px;background:rgba(6,8,18,0.98);border:1px solid rgba(201,168,76,0.3);border-radius:16px;display:none;flex-direction:column;z-index:997;box-shadow:0 20px 70px rgba(0,0,0,0.85);}
+  .ai-panel.open{display:flex;animation:panel-up 0.22s ease;}
+  .ai-ph{background:rgba(201,168,76,0.06);border-bottom:1px solid rgba(201,168,76,0.14);padding:11px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-radius:16px 16px 0 0;}
+  .ai-ph-title{font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:rgba(201,168,76,0.75);text-transform:uppercase;font-family:'Cinzel',Georgia,serif;display:flex;align-items:center;gap:7px;}
+  .ai-ph-dot{width:6px;height:6px;border-radius:50%;background:#44ff88;box-shadow:0 0 6px rgba(68,255,136,0.6);}
+  .ai-ph-close{background:none;border:none;color:#444;cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;transition:color 0.2s;}
+  .ai-ph-close:hover{color:#888;}
+  .ai-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;max-height:240px;}
+  .ai-msgs::-webkit-scrollbar{width:3px;}
+  .ai-msgs::-webkit-scrollbar-thumb{background:rgba(201,168,76,0.25);border-radius:2px;}
+  .ai-m{display:flex;gap:7px;animation:msg-in 0.2s ease;}
+  @keyframes msg-in{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+  .ai-m.user{flex-direction:row-reverse;}
+  .ai-m-av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;flex-shrink:0;margin-top:2px;}
+  .ai-m.assistant .ai-m-av{background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);}
+  .ai-m.user .ai-m-av{background:rgba(226,185,111,0.1);border:1px solid rgba(226,185,111,0.2);}
+  .ai-m-bubble{padding:7px 11px;border-radius:10px;font-size:0.82rem;line-height:1.6;max-width:87%;font-family:Georgia,serif;}
+  .ai-m.assistant .ai-m-bubble{background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.12);color:rgba(240,235,225,0.9);border-top-left-radius:2px;}
+  .ai-m.user .ai-m-bubble{background:rgba(226,185,111,0.08);border:1px solid rgba(226,185,111,0.15);color:rgba(240,235,225,0.85);border-top-right-radius:2px;}
+  .ai-sugs{padding:0 12px 8px;display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
+  .ai-sug{padding:5px 9px;background:rgba(255,255,255,0.02);border:1px solid rgba(201,168,76,0.1);border-radius:6px;color:rgba(240,235,225,0.38);font-size:0.73rem;cursor:pointer;transition:all 0.15s;text-align:left;font-family:Georgia,serif;}
+  .ai-sug:hover{border-color:rgba(201,168,76,0.3);color:rgba(240,235,225,0.88);background:rgba(201,168,76,0.05);}
+  .ai-inp-row{padding:10px 12px;border-top:1px solid rgba(201,168,76,0.1);display:flex;gap:7px;flex-shrink:0;}
+  .ai-inp{flex:1;padding:7px 11px;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:8px;color:#fff;font-family:Georgia,serif;font-size:0.83rem;outline:none;transition:border-color 0.2s;}
+  .ai-inp:focus{border-color:rgba(201,168,76,0.5);}
+  .ai-inp::placeholder{color:rgba(255,255,255,0.18);}
+  .ai-send{padding:7px 13px;background:rgba(201,168,76,0.13);border:1px solid rgba(201,168,76,0.28);border-radius:8px;color:#f2e5b7;font-size:0.78rem;cursor:pointer;font-family:Georgia,serif;transition:all 0.15s;}
+  .ai-send:hover{background:rgba(201,168,76,0.23);}
+  .ai-typing{display:flex;gap:4px;align-items:center;padding:4px 0;}
+  .ai-td{width:6px;height:6px;border-radius:50%;background:rgba(201,168,76,0.4);animation:td 1.2s ease infinite;}
+  .ai-td:nth-child(2){animation-delay:0.2s;}
+  .ai-td:nth-child(3){animation-delay:0.4s;}
+  @keyframes td{0%,80%,100%{opacity:0.2;transform:scale(0.8);}40%{opacity:1;transform:scale(1);}}
+
+  /* ── SPECTATOR LINK ── */
+  .sync-status{position:fixed;top:12px;left:50%;transform:translateX(-50%);font-size:0.6rem;font-family:'Cinzel',serif;color:rgba(68,255,136,0.5);letter-spacing:0.08em;z-index:500;transition:all 0.3s;}
+  .spectator-qr-btn{position:fixed;top:12px;right:16px;padding:7px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.25);border-radius:8px;color:#c9a84c;font-family:'Cinzel',Georgia,serif;font-size:0.65rem;font-weight:700;cursor:pointer;transition:all 0.2s;}
+  .spectator-qr-btn:hover{background:rgba(201,168,76,0.12);border-color:rgba(201,168,76,0.55);}
+  .spectator-qr-panel{position:fixed;top:70px;right:16px;width:300px;background:rgba(6,4,14,0.98);border:1px solid rgba(201,168,76,0.35);border-radius:16px;padding:14px;z-index:600;box-shadow:0 25px 80px rgba(0,0,0,0.7);display:none;}
+  .spectator-qr-panel.open{display:block;}
+  .spectator-qr-panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.08em;color:#c9a84c;}
+  .spectator-qr-panel-close{background:none;border:none;color:#888;cursor:pointer;font-size:1rem;line-height:1;}
+  .spectator-qr-image{width:100%;height:auto;border-radius:14px;background:#111;margin-bottom:10px;}
+  .spectator-qr-link{font-family:Georgia,serif;font-size:0.75rem;color:#f2e5b7;word-break:break-all;line-height:1.3;}
+  .spectator-qr-copy{margin-top:10px;padding:8px 12px;width:100%;border:1px solid rgba(201,168,76,0.35);border-radius:10px;background:rgba(201,168,76,0.12);color:#e8d7a1;cursor:pointer;font-family:Georgia,serif;font-size:0.8rem;transition:all 0.2s;}
+  .spectator-qr-copy:hover{background:rgba(201,168,76,0.16);}
+
+  /* ── SOUND SETTINGS ── */
+  .sound-settings-btn{position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1a0a2a,#0a0510);border:2px solid rgba(201,168,76,0.5);color:#c9a84c;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 24px rgba(0,0,0,0.7),0 0 30px rgba(201,168,76,0.15);z-index:999;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+  .sound-settings-btn:hover{transform:scale(1.08);border-color:rgba(201,168,76,0.9);}
+  .sound-settings-panel{position:fixed;bottom:80px;right:20px;width:280px;background:rgba(6,4,14,0.98);border:1px solid rgba(201,168,76,0.3);border-radius:16px;padding:14px 16px;z-index:998;box-shadow:0 20px 60px rgba(0,0,0,0.8);display:none;animation:panel-up 0.2s ease;}
+  .sound-settings-panel.open{display:block;}
+  @keyframes panel-up{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+  .sound-settings-header{font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.12em;color:rgba(201,168,76,0.7);text-transform:uppercase;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+  .sound-settings-close{background:none;border:none;color:#888;cursor:pointer;font-size:1rem;padding:0;width:20px;height:20px;display:flex;align-items:center;justify-content:center;}
+  .sound-setting-group{margin-bottom:12px;}
+  .sound-setting-label{font-family:Georgia,serif;font-size:0.75rem;color:rgba(240,235,225,0.7);display:flex;justify-content:space-between;margin-bottom:6px;}
+  .sound-setting-value{font-family:'Cinzel',serif;font-size:0.7rem;color:rgba(201,168,76,0.8);}
+  .sound-setting-slider{width:100%;height:6px;border-radius:3px;background:rgba(201,168,76,0.2);outline:none;-webkit-appearance:none;appearance:none;cursor:pointer;}
+  .sound-setting-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,#c9a84c,#a07830);border:1px solid rgba(201,168,76,0.8);cursor:pointer;box-shadow:0 0 8px rgba(201,168,76,0.6);}
+  .sound-setting-slider::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,#c9a84c,#a07830);border:1px solid rgba(201,168,76,0.8);cursor:pointer;box-shadow:0 0 8px rgba(201,168,76,0.6);}
+  .sound-mute-toggle{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);cursor:pointer;transition:all 0.2s;font-family:Georgia,serif;font-size:0.75rem;color:rgba(240,235,225,0.7);}
+  .sound-mute-toggle:hover{background:rgba(201,168,76,0.2);border-color:rgba(201,168,76,0.4);}
+  .sound-mute-toggle input{width:16px;height:16px;cursor:pointer;accent-color:#c9a84c;}
+  </style>
+</head>
+<body>
+  <button id="soundSettingsBtn" class="sound-settings-btn" title="Sound Settings">🔊</button>
+  <div id="soundSettingsPanel" class="sound-settings-panel">
+    <div class="sound-settings-header">
+      <span>🎵 Sound</span>
+      <button class="sound-settings-close" id="soundSettingsClose">✕</button>
+    </div>
+
+    <div class="sound-setting-group">
+      <div class="sound-setting-label">
+        <span>Master Volume</span>
+        <span class="sound-setting-value" id="masterVolumeValue">100%</span>
+      </div>
+      <input type="range" id="masterVolumeSlider" class="sound-setting-slider" min="0" max="100" value="100">
+    </div>
+
+    <div class="sound-setting-group">
+      <div class="sound-setting-label">
+        <span>Music Volume</span>
+        <span class="sound-setting-value" id="musicVolumeValue">18%</span>
+      </div>
+      <input type="range" id="musicVolumeSlider" class="sound-setting-slider" min="0" max="100" value="18">
+    </div>
+
+    <div class="sound-setting-group">
+      <div class="sound-setting-label">
+        <span>Sound Effects</span>
+        <span class="sound-setting-value" id="soundEffectsValue">60%</span>
+      </div>
+      <input type="range" id="soundEffectsSlider" class="sound-setting-slider" min="0" max="100" value="60">
+    </div>
+
+    <div class="sound-setting-group">
+      <label class="sound-mute-toggle">
+        <input type="checkbox" id="soundMuteToggle">
+        <span id="muteLabel">Mute All</span>
+      </label>
+    </div>
+  </div>
+  <button id="showSpectatorQr" class="spectator-qr-btn" type="button">Spectator QR</button>
+  <div class="sync-status" id="syncStatus">● SYNC OK</div>
+
+  <div id="spectatorQrPanel" class="spectator-qr-panel" aria-hidden="true">
+    <div class="spectator-qr-panel-header">
+      <span>Spectator QR</span>
+      <button id="closeSpectatorQr" class="spectator-qr-panel-close" type="button">✕</button>
+    </div>
+    <img id="spectatorQrImg" class="spectator-qr-image" src="" alt="Spectator QR code">
+    <div class="spectator-qr-link" id="spectatorQrLink"></div>
+    <button id="copySpectatorLink" class="spectator-qr-copy" type="button">Copy Spectator Link</button>
+  </div>
+
+  <!-- Unified Input Panel (Voice + Manual) - Collapsible & Draggable -->
+  <div id="inputPanel" style="position:fixed;bottom:90px;right:92px;width:380px;background:rgba(6,4,14,0.98);border:1px solid rgba(201,168,76,0.3);border-radius:16px;padding:14px 16px;z-index:999;box-shadow:0 20px 60px rgba(0,0,0,0.8);display:flex;flex-direction:column;gap:10px;user-select:none;">
+    <!-- Draggable Title Bar -->
+    <div id="inputPanelDragHandle" style="display:flex;justify-content:space-between;align-items:center;cursor:grab;user-select:none;padding:0 0 8px 0;border-bottom:1px solid rgba(201,168,76,0.2);">
+      <div style="font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.1em;color:rgba(201,168,76,0.9);text-transform:uppercase;flex:1;padding:4px 8px;">⌨️ Command Input</div>
+      <div style="display:flex;gap:4px;">
+        <button id="collapseInputPanel" style="background:none;border:none;color:#888;cursor:pointer;font-size:1rem;padding:0;width:20px;height:20px;display:flex;align-items:center;justify-content:center;transition:color 0.2s;" title="Collapse">−</button>
+        <button id="closeInputPanel" style="background:none;border:none;color:#888;cursor:pointer;font-size:1rem;padding:0;width:20px;height:20px;display:flex;align-items:center;justify-content:center;transition:color 0.2s;" title="Close">✕</button>
+      </div>
+    </div>
+    
+    <!-- Collapsible Content -->
+    <div id="inputPanelContent" style="display:flex;flex-direction:column;gap:10px;transition:all 0.2s;overflow:hidden;">
+      <div style="font-family:Georgia,serif;font-size:0.75rem;color:rgba(240,235,225,0.6);min-height:24px;display:flex;align-items:center;">
+        <span id="inputModeHint">Type or speak a command...</span>
+      </div>
+      <input id="manualCmd" type="text" placeholder="e.g. 'Kai loses 5 life', 'attack for 3', 'draw a card'" style="width:100%;padding:10px 12px;border:1px solid rgba(201,168,76,0.4);border-radius:10px;background:rgba(0,0,0,0.55);color:#fff;font-family:Georgia,serif;font-size:0.88rem;outline:none;transition:border-color 0.2s;" />
+      <div style="display:flex;gap:8px;">
+        <button id="manualCmdBtn" style="flex:1;padding:10px 14px;border:1px solid rgba(201,168,76,0.5);border-radius:10px;background:rgba(201,168,76,0.16);color:#e8d7a1;cursor:pointer;font-family:Georgia,serif;font-size:0.85rem;transition:all 0.2s;">Submit Command</button>
+        <button id="voiceHelpToggle" style="padding:10px 14px;border:1px solid rgba(201,168,76,0.4);border-radius:10px;background:rgba(10,20,50,0.9);color:#f2e5b7;cursor:pointer;font-size:0.75rem;font-weight:bold;">?</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Voice Command Help Panel -->
+  <div id="voiceHelpPanel" style="display:none;position:fixed;bottom:320px;left:20px;right:20px;max-width:640px;max-height:320px;overflow-y:auto;background:rgba(6,8,18,0.98);border:1px solid rgba(201,168,76,0.3);border-radius:16px;padding:16px;z-index:999;box-shadow:0 20px 70px rgba(0,0,0,0.85);font-family:Georgia,serif;font-size:0.85rem;color:rgba(240,235,225,0.85);line-height:1.6;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-family:'Cinzel',serif;font-size:0.7rem;letter-spacing:0.1em;color:rgba(201,168,76,0.9);text-transform:uppercase;">🎤 Voice Command Examples</div>
+      <button id="voiceHelpClose" style="background:none;border:none;color:#888;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    
+    <div style="display:grid;grid-template-columns:1fr;gap:10px;color:rgba(240,235,225,0.75);">
+      <div>
+        <div style="color:rgba(68,255,136,0.8);font-weight:bold;margin-bottom:4px;">💚 Life Changes (fuzzy match):</div>
+        <div style="color:rgba(240,235,225,0.6);margin-left:8px;">
+          • "Kai loses a life" → Kai loses 1 life<br>
+          • "Chi gains 5 life" → Kai gains 5 life (fuzzy match)<br>
+          • "Mike loses 10 life" → Mike loses 10 life
+        </div>
+      </div>
+      
+      <div>
+        <div style="color:rgba(68,255,136,0.8);font-weight:bold;margin-bottom:4px;">🃏 Hand & Deck:</div>
+        <div style="color:rgba(240,235,225,0.6);margin-left:8px;">
+          • "Kai draws 2 cards" → Kai draws 2, hand increases<br>
+          • "Chi pulls a card" → Kai draws 1<br>
+          • "Kai discards 3 cards" → Kai discards 3, hand decreases
+        </div>
+      </div>
+
+      <div>
+        <div style="color:rgba(68,255,136,0.8);font-weight:bold;margin-bottom:4px;">⚔️ Combat Damage:</div>
+        <div style="color:rgba(240,235,225,0.6);margin-left:8px;">
+          • "Kai attacks for 3" → Kai takes 3 damage<br>
+          • "attacks Sarah with 5" → Sarah takes 5 damage<br>
+          • "for 8 damage" → Current defender takes 8 damage
+        </div>
+      </div>
+      
+      <div>
+        <div style="color:rgba(68,255,136,0.8);font-weight:bold;margin-bottom:4px;">⏱️ Turn Phases:</div>
+        <div style="color:rgba(240,235,225,0.6);margin-left:8px;">
+          • "next phase" / "pass phase" → Advance one phase<br>
+          • "set phase to combat" → Jump to Combat phase<br>
+          • "set phase to draw/main/end" → Jump to that phase<br>
+          • "next turn" / "end turn" → Pass to next player's turn
+        </div>
+      </div>
+
+      <div>
+        <div style="color:rgba(100,180,255,0.9);font-weight:bold;margin-bottom:4px;">⚔️ Combat Phases (during combat):</div>
+        <div style="color:rgba(240,235,225,0.6);margin-left:8px;">
+          • "attack with [card]" → Auto-start combat and declare attacker<br>
+          • "declare done" or "pass" → Finalize attackers<br>
+          • "no blockers" → Skip blocker assignment<br>
+          • "proceed" or "resolve" → Move to next phase<br>
+          • "done" → Resolve combat and see results
+        </div>
+      </div>
+      
+      <div>
+        <div style="color:rgba(68,255,136,0.8);font-weight:bold;margin-bottom:4px;">☠️ Poison Counters:</div>
+        <div style="color:rgba(240,235,225,0.6);margin-left:8px;">
+          • "Kai takes poison" → Kai gets 1 poison<br>
+          • "Chi gets 2 poison" → Kai gets 2 poison<br>
+          • "poison counters" → Current player gets 1
+        </div>
+      </div>
+      
+      <div>
+        <div style="color:rgba(68,255,136,0.8);font-weight:bold;margin-bottom:4px;">🎴 Card Actions:</div>
+        <div style="color:rgba(240,235,225,0.6);margin-left:8px;">
+          • "Kai cast lightning bolt" → Add card to graveyard<br>
+          • "Kai placed Sol Ring into battlefield" → Add permanent to battlefield<br>
+          • "tap goblin" → Tap/untap a card<br>
+          • "Kai gains 3 life" / "Kai loses 2 life" → Update life<br>
+          • "next phase" / "set phase to combat" → Control turn flow hands-free<br>
+          • "next turn" → Advance to next player's turn<br>
+          • "undo" or "undo last" → Revert last committed action
+        </div>
+      </div>
+      
+      <div style="background:rgba(201,168,76,0.06);padding:8px;border-left:2px solid rgba(201,168,76,0.3);border-radius:4px;">
+        <div style="color:rgba(201,168,76,0.9);font-weight:bold;margin-bottom:4px;">💡 Pro Tips:</div>
+        <div style="color:rgba(240,235,225,0.6);font-size:0.78rem;">
+          ✓ Names use fuzzy matching (Kai ≈ Chi, Sarah ≈ Sara)<br>
+          ✓ Numbers are optional (defaults to 1)<br>
+          ✓ Try natural speech — the parser is forgiving!<br>
+          ✓ During combat, use "pass" or "proceed" to advance phases<br>
+          ✓ Use "undo" immediately if voice parses the wrong action
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="setup-screen"></div>
+  <div id="game-screen" style="display:none;"></div>
+
+  <!-- Voice FAB -->
+  <div class="voice-fab-wrap">
+    <button class="voice-fab" id="voiceFab" title="Click to toggle microphone on/off">🎤</button>
+    <div class="voice-fab-label" id="voiceFabLabel">Click to toggle mic</div>
+  </div>
+
+  <!-- Voice Status Panel -->
+  <div class="voice-panel" id="voicePanel">
+    <div class="voice-panel-hdr" style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="voice-panel-dot"></div>
+        <span>Voice Command</span>
+      </div>
+      <button id="voiceSettingsToggle" style="background:none;border:none;color:rgba(201,168,76,0.7);cursor:pointer;font-size:1.1rem;padding:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">⚙️</button>
+    </div>
+    
+    <!-- Voice Settings Section (Hidden by default) -->
+    <div id="voiceSettings" style="display:none;padding:10px 0;border-top:1px solid rgba(201,168,76,0.2);border-bottom:1px solid rgba(201,168,76,0.2);margin:10px 0;font-size:0.75rem;">
+      <div style="margin-bottom:10px;">
+        <label style="color:rgba(240,235,225,0.7);display:block;margin-bottom:4px;">🎤 Listening Mode:</label>
+        <select id="voiceMode" style="width:100%;padding:6px;background:rgba(0,0,0,0.55);border:1px solid rgba(201,168,76,0.4);border-radius:6px;color:#fff;font-family:Georgia,serif;cursor:pointer;">
+          <option value="toggle" selected>Tap Toggle (On/Off)</option>
+          <option value="continuous">Always On (Auto-Silence Detect)</option>
+        </select>
+      </div>
+      
+      <div style="margin-bottom:10px;">
+        <label style="color:rgba(240,235,225,0.7);display:block;margin-bottom:4px;">🌍 Language/Accent:</label>
+        <select id="voiceLang" style="width:100%;padding:6px;background:rgba(0,0,0,0.55);border:1px solid rgba(201,168,76,0.4);border-radius:6px;color:#fff;font-family:Georgia,serif;cursor:pointer;">
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="en-AU">English (Australia)</option>
+          <option value="es-ES">Spanish (Spain)</option>
+          <option value="es-MX">Spanish (Mexico)</option>
+          <option value="fr-FR">French</option>
+          <option value="de-DE">German</option>
+          <option value="it-IT">Italian</option>
+          <option value="pt-BR">Portuguese (Brazil)</option>
+          <option value="pt-PT">Portuguese (Portugal)</option>
+          <option value="ja-JP">Japanese</option>
+          <option value="ko-KR">Korean</option>
+        </select>
+      </div>
+      
+      <div style="margin-bottom:10px;">
+        <label style="color:rgba(240,235,225,0.7);display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="voiceNoiseGate" style="cursor:pointer;">
+          <span>🔇 Noise Gate (quiet rooms only)</span>
+        </label>
+        <div style="font-size:0.65rem;color:rgba(240,235,225,0.5);margin-top:4px;">Only listen when mic detects speech volume</div>
+      </div>
+      
+      <div>
+        <label style="color:rgba(240,235,225,0.7);display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="voiceConfirmFirst" style="cursor:pointer;">
+          <span>⚠️ Confirm First (noisy rooms)</span>
+        </label>
+        <div style="font-size:0.65rem;color:rgba(240,235,225,0.5);margin-top:4px;">Queue commands, show confirmation before executing</div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <label style="color:rgba(240,235,225,0.7);display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="voiceAutoPhaseDraw" style="cursor:pointer;">
+          <span>⏭ Auto Advance Draw → Main</span>
+        </label>
+        <div style="font-size:0.65rem;color:rgba(240,235,225,0.5);margin-top:4px;">After a draw command in Draw phase, move to Main phase automatically</div>
+      </div>
+    </div>
+    
+    <!-- Mic Level Indicator (when noise gate enabled) -->
+    <div id="voiceMicLevel" style="display:none;margin-bottom:8px;">
+      <div style="font-size:0.65rem;color:rgba(240,235,225,0.5);margin-bottom:4px;">Mic Level:</div>
+      <div style="width:100%;height:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(201,168,76,0.3);border-radius:4px;overflow:hidden;">
+        <div id="voiceMicLevelBar" style="height:100%;width:0%;background:linear-gradient(90deg,rgba(68,255,136,0.6),rgba(68,255,136,0.9));transition:width 0.05s;"></div>
+      </div>
+    </div>
+    
+    <div class="voice-transcript" id="voiceTranscript">Ready to listen...</div>
+    <div class="voice-action-list" id="voiceActionList"></div>
+    <div class="voice-hold-hint" id="voiceHoldHint">Click settings ⚙️ to configure listening mode</div>
+  </div>
+
+  <!-- AI assistant interface removed for pure speech/manual command workflow -->
+
+  <script src="js/operator.js"></script>
+  <script>
+    // ═══════════════════════════════════════════════════════════
+    // INPUT PANEL: Toggle, Draggable, Collapsible
+    // ═══════════════════════════════════════════════════════════
+    
+    function toggleInputPanel() {
+      const inputPanel = document.getElementById('inputPanel');
+      inputPanel.style.display = inputPanel.style.display === 'flex' ? 'none' : 'flex';
+      if (inputPanel.style.display === 'flex') {
+        document.getElementById('manualCmd').focus();
+      }
+    }
+    
+    const inputPanel = document.getElementById('inputPanel');
+    const dragHandle = document.getElementById('inputPanelDragHandle');
+    const closeBtn = document.getElementById('closeInputPanel');
+    const collapseBtn = document.getElementById('collapseInputPanel');
+    const panelContent = document.getElementById('inputPanelContent');
+    
+    let isCollapsed = false;
+    let isDragging = false;
+    let dragOffset = { x: 0, y: 0 };
+    let initialPos = { x: 0, y: 0 };
+    
+    // Close button
+    closeBtn?.addEventListener('click', () => {
+      inputPanel.style.display = 'none';
+    });
+    
+    // Collapse/Expand button
+    collapseBtn?.addEventListener('click', () => {
+      isCollapsed = !isCollapsed;
+      panelContent.style.maxHeight = isCollapsed ? '0px' : '1000px';
+      panelContent.style.opacity = isCollapsed ? '0' : '1';
+      panelContent.style.overflow = isCollapsed ? 'hidden' : 'visible';
+      collapseBtn.textContent = isCollapsed ? '▲' : '−';
+    });
+    
+    // Draggable functionality
+    dragHandle?.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      const rect = inputPanel.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+      initialPos.x = rect.left;
+      initialPos.y = rect.top;
+      dragHandle.style.cursor = 'grabbing';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+      inputPanel.style.position = 'fixed';
+      inputPanel.style.left = newX + 'px';
+      inputPanel.style.top = newY + 'px';
+      inputPanel.style.right = 'auto';
+      inputPanel.style.bottom = 'auto';
+    });
+    
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        dragHandle.style.cursor = 'grab';
+      }
+    });
+    
+    // Add hover effect to drag handle
+    dragHandle?.addEventListener('mouseenter', () => {
+      if (!isDragging) dragHandle.style.cursor = 'grab';
+    });
+    dragHandle?.addEventListener('mouseleave', () => {
+      if (!isDragging) dragHandle.style.cursor = 'default';
+    });
+    
+    
+    // Voice Help Panel Toggle
+    document.getElementById('voiceHelpToggle')?.addEventListener('click', () => {
+      const panel = document.getElementById('voiceHelpPanel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+    
+    document.getElementById('voiceHelpClose')?.addEventListener('click', () => {
+      document.getElementById('voiceHelpPanel').style.display = 'none';
+    });
+
+    function base64EncodeUnicode(str) {
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+        return String.fromCharCode('0x' + p1);
+      }));
+    }
+
+    function buildSpectatorPageUrl() {
+      var href = window.location.href;
+      if (href.endsWith('index.html')) {
+        return href.replace(/index\.html$/, 'spectator.html');
+      }
+      if (href.endsWith('/')) {
+        return href + 'spectator.html';
+      }
+      return href + (href.endsWith('/') ? '' : '/') + 'spectator.html';
+    }
+
+    function getSharedSpectatorUrl() {
+      var state = localStorage.getItem('mtg_spectator') || '';
+      var baseUrl = buildSpectatorPageUrl();
+      if (!state) {
+        return baseUrl;
+      }
+      try {
+        var payload = base64EncodeUnicode(state);
+        return baseUrl + '#state=' + payload;
+      } catch (e) {
+        return baseUrl;
+      }
+    }
+
+    function updateSpectatorQr() {
+      var url = getSharedSpectatorUrl();
+      var img = document.getElementById('spectatorQrImg');
+      var linkEl = document.getElementById('spectatorQrLink');
+      if (img) {
+        img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(url);
+      }
+      if (linkEl) {
+        linkEl.innerHTML = '<a href="' + url + '" target="_blank" style="color:#f2e5b7;text-decoration:none;">' + url + '</a>';
+      }
+    }
+
+    document.getElementById('showSpectatorQr')?.addEventListener('click', function() {
+      var panel = document.getElementById('spectatorQrPanel');
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) {
+        updateSpectatorQr();
+      }
+    });
+
+    document.getElementById('closeSpectatorQr')?.addEventListener('click', function() {
+      document.getElementById('spectatorQrPanel').classList.remove('open');
+    });
+
+    document.getElementById('copySpectatorLink')?.addEventListener('click', function() {
+      var url = getSharedSpectatorUrl();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          var btn = document.getElementById('copySpectatorLink');
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = 'Copy Spectator Link'; }, 1800);
+        }).catch(() => {
+          var btn = document.getElementById('copySpectatorLink');
+          btn.textContent = 'Copy failed';
+          setTimeout(() => { btn.textContent = 'Copy Spectator Link'; }, 1800);
+        });
+      }
+    });
+
+    setInterval(updateSpectatorQr, 2000);
+
+    // ═════════════════════════════════════════════════════════════
+    // SOUND SETTINGS PANEL
+    // ═════════════════════════════════════════════════════════════
+    const soundSettingsBtn = document.getElementById('soundSettingsBtn');
+    const soundSettingsPanel = document.getElementById('soundSettingsPanel');
+    const soundSettingsClose = document.getElementById('soundSettingsClose');
+    
+    const masterVolumeSlider = document.getElementById('masterVolumeSlider');
+    const musicVolumeSlider = document.getElementById('musicVolumeSlider');
+    const soundEffectsSlider = document.getElementById('soundEffectsSlider');
+    const soundMuteToggle = document.getElementById('soundMuteToggle');
+    
+    const masterVolumeValue = document.getElementById('masterVolumeValue');
+    const musicVolumeValue = document.getElementById('musicVolumeValue');
+    const soundEffectsValue = document.getElementById('soundEffectsValue');
+    
+    // Restore initial values
+    masterVolumeSlider.value = Math.round((masterVolume || 1.0) * 100);
+    musicVolumeSlider.value = Math.round((musicVolume || 0.18) * 100);
+    soundEffectsSlider.value = Math.round((soundVolume || 0.6) * 100);
+    soundMuteToggle.checked = soundMuted || false;
+    
+    updateVolumeDisplay();
+    
+    // Toggle settings panel
+    soundSettingsBtn?.addEventListener('click', function() {
+      soundSettingsPanel.classList.toggle('open');
+    });
+    
+    soundSettingsClose?.addEventListener('click', function() {
+      soundSettingsPanel.classList.remove('open');
+    });
+    
+    // Volume sliders
+    masterVolumeSlider?.addEventListener('input', function() {
+      setMasterVolume(this.value / 100);
+      updateVolumeDisplay();
+    });
+    
+    musicVolumeSlider?.addEventListener('input', function() {
+      setMusicVolume(this.value / 100);
+      updateVolumeDisplay();
+    });
+    
+    soundEffectsSlider?.addEventListener('input', function() {
+      setSoundVolume(this.value / 100);
+      updateVolumeDisplay();
+    });
+    
+    // Mute toggle
+    soundMuteToggle?.addEventListener('change', function() {
+      toggleMute();
+      updateVolumeDisplay();
+    });
+    
+    function updateVolumeDisplay() {
+      masterVolumeValue.textContent = Math.round(masterVolume * 100) + '%';
+      musicVolumeValue.textContent = Math.round(musicVolume * 100) + '%';
+      soundEffectsValue.textContent = Math.round(soundVolume * 100) + '%';
+      
+      const muteLabel = document.getElementById('muteLabel');
+      if (muteLabel) {
+        muteLabel.textContent = soundMuted ? 'Unmute All' : 'Mute All';
+      }
+      
+      soundSettingsBtn.style.opacity = soundMuted ? '0.5' : '1';
+    }
+  </script>
+</body>
+</html>

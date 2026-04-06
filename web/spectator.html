@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTG Tracker — Table View</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="spectator.css">
+</head>
+<body>
+<div class="scene" id="scene">
+  <div class="env"></div>
+  <div class="env-fog"></div>
+
+  <div class="topbar">
+    <div class="logo">⚔ MTG TRACKER</div>
+    <div class="topbar-center">
+      <div class="live-pill"><div class="ldot"></div><span>LIVE</span></div>
+      <div class="turn-pill" id="turnPill">Waiting for game...</div>
+      <div class="phase-pill" id="phasePill">Commander</div>
+    </div>
+    <div class="topbar-right">
+      <div class="back-btn hidden" id="backBtn" onclick="closeZoom()">← All Players</div>
+      <button class="spec-sound-btn" id="specSoundBtn" type="button" onclick="toggleSpecSoundBar()" title="Sound Controls">🔊</button>
+      <div class="spectator-menu" id="spectatorMenu">
+        <button class="spectator-menu-btn" id="spectatorMenuBtn" type="button" onclick="toggleSpectatorMenu(event)">Share ▾</button>
+        <div class="spectator-menu-panel hidden" id="spectatorMenuPanel">
+          <div class="qr-label">Scan To Join</div>
+          <div class="qr-code" id="qrCode"></div>
+        </div>
+      </div>
+      <a href="index.html" class="op-btn">Operator →</a>
+    </div>
+  </div>
+
+  <div class="phase-track-wrap">
+    <div class="phase-track" id="phaseTrack"></div>
+  </div>
+
+  <div class="combat-showcase-wrap" id="combatShowcaseWrap">
+    <div class="combat-showcase-header">
+      <span class="combat-showcase-title">Combat Center</span>
+      <span class="combat-showcase-phase" id="combatShowcasePhase">Idle</span>
+    </div>
+    <div class="combat-showcase-main" id="combatShowcaseMain">Waiting for combat activity...</div>
+  </div>
+
+  <div class="table-wrap" id="tableWrap">
+    <div class="table-3d" id="t3d">
+      <div class="table-surface">
+        <div class="spotlight"></div>
+        <div class="vignette"></div>
+        <div class="center-ring"><div class="center-txt">COMMAND<br>ZONE</div></div>
+        <div class="zoom-ov" id="zov" onclick="closeZoom()">
+          <div class="zoom-panel" id="zpanel" onclick="event.stopPropagation()"></div>
+        </div>
+        <div class="card-inspector hidden" id="cardInspector" onclick="closeCardInspector()">
+          <div class="card-inspector-panel" id="cardInspectorPanel" onclick="event.stopPropagation()"></div>
+        </div>
+        <div class="pgrid" id="pgrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spectator Sound Bar — independent from operator audio -->
+  <div class="spec-sound-bar hidden" id="specSoundBar">
+    <div class="spec-sound-inner">
+      <span class="spec-sound-label">♫ Ambience</span>
+      <button class="spec-mute-btn" id="specMuteBtn" type="button" onclick="specToggleMute()" title="Mute / Unmute">🔊</button>
+      <span class="spec-track-name">Medieval Ambience</span>
+      <input class="spec-vol-slider" id="specVolSlider" type="range" min="0" max="100" value="28" oninput="specSetVolume(this.value)">
+      <button class="spec-play-btn" id="specPlayBtn" type="button" onclick="specTogglePlay()">▶ Play</button>
+    </div>
+  </div>
+
+  <div class="ai-bar">
+    <div class="ai-bar-left">
+      <div class="ai-indicator"><div class="ai-dot"></div><span class="ai-lbl">Live Commentary</span></div>
+      <div class="ai-text" id="aiText">Waiting for commentary... Operator can type or speak to send live commentary.<span class="cur"></span></div>
+    </div>
+    <div class="ai-bar-right">
+      <div class="combat-feed" id="combatFeed">
+        <div class="combat-header">⚔ Combat Feed</div>
+        <div class="combat-entries" id="combatEntries">Waiting for combat...</div>
+      </div>
+      <div class="who-winning" id="whoWinning">—</div>
+      <div class="who-lbl">Leading</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="js/spectator.js"></script>
+<script>
+  // ═══════════════════════════════════════════════
+  // SPECTATOR SOUND BAR — isolated from operator
+  // ═══════════════════════════════════════════════
+  var _specAudio = null;
+  var _specMuted = (localStorage.getItem('specMuted') === 'true');
+  var _specVol   = parseFloat(localStorage.getItem('specVol') || '0.28');
+  var _specPlaying = false;
+
+  function _initSpecAudio() {
+    if (_specAudio) return;
+    _specAudio = new Audio('sounds/medieval-various-music.mp3');
+    _specAudio.loop = true;
+    _specAudio.volume = _specMuted ? 0 : _specVol;
+    _specAudio.addEventListener('ended', function() { /* loop handles it */ });
+    // restore slider position
+    var slider = document.getElementById('specVolSlider');
+    if (slider) slider.value = Math.round(_specVol * 100);
+    if (_specMuted) {
+      var muteBtn = document.getElementById('specMuteBtn');
+      if (muteBtn) muteBtn.textContent = '🔇';
+    }
+  }
+
+  function toggleSpecSoundBar() {
+    var bar = document.getElementById('specSoundBar');
+    var btn = document.getElementById('specSoundBtn');
+    if (!bar) return;
+    var hidden = bar.classList.toggle('hidden');
+    btn.classList.toggle('active', !hidden);
+    if (!hidden) _initSpecAudio();
+  }
+
+  function specTogglePlay() {
+    _initSpecAudio();
+    var playBtn = document.getElementById('specPlayBtn');
+    if (_specPlaying) {
+      _specAudio.pause();
+      _specPlaying = false;
+      if (playBtn) { playBtn.textContent = '▶ Play'; playBtn.classList.remove('playing'); }
+    } else {
+      _specAudio.play().catch(function(){});
+      _specPlaying = true;
+      if (playBtn) { playBtn.textContent = '⏸ Pause'; playBtn.classList.add('playing'); }
+    }
+  }
+
+  function specToggleMute() {
+    _initSpecAudio();
+    _specMuted = !_specMuted;
+    _specAudio.volume = _specMuted ? 0 : _specVol;
+    localStorage.setItem('specMuted', _specMuted);
+    var muteBtn = document.getElementById('specMuteBtn');
+    if (muteBtn) muteBtn.textContent = _specMuted ? '🔇' : '🔊';
+  }
+
+  function specSetVolume(val) {
+    _specVol = val / 100;
+    localStorage.setItem('specVol', _specVol);
+    if (_specAudio && !_specMuted) _specAudio.volume = _specVol;
+  }
+  function toggleSpectatorMenu(event) {
+    if (event) {
+      event.stopPropagation();
+    }
+    var panel = document.getElementById('spectatorMenuPanel');
+    if (!panel) return;
+    panel.classList.toggle('hidden');
+  }
+
+  function closeSpectatorMenu() {
+    var panel = document.getElementById('spectatorMenuPanel');
+    if (panel) {
+      panel.classList.add('hidden');
+    }
+  }
+
+  // Generate QR code from current URL
+  function generateQRCode() {
+    var qrContainer = document.getElementById('qrCode');
+    if (!qrContainer) return;
+    
+    // Clear existing QR code
+    qrContainer.innerHTML = '';
+    
+    // Get current URL (or hash-based URL)
+    var url = window.location.href;
+    
+    // Create QR code (120x120 pixels)
+    new QRCode(qrContainer, {
+      text: url,
+      width: 120,
+      height: 120,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+  
+  // Generate QR code on page load
+  window.addEventListener('load', function() {
+    generateQRCode();
+
+    document.addEventListener('click', function(event) {
+      var menu = document.getElementById('spectatorMenu');
+      if (menu && !menu.contains(event.target)) {
+        closeSpectatorMenu();
+      }
+    });
+    
+    // Regenerate QR code if URL hash changes
+    window.addEventListener('hashchange', function() {
+      generateQRCode();
+    });
+  });
+</script>
+</body>
+</html>
